@@ -1,0 +1,228 @@
+---
+title: "Figures for Manuscript"
+author: "Sonali Arora"
+date: "October 2, 2020"
+output: 
+  html_document:
+    toc: true
+    theme: united
+---
+
+## Figures for Manuscript
+
+In this vignette, we show code to recreate the figures for our manuscript
+
+### Figure 1
+
+```{r}
+
+rm(list=ls())
+
+library(monocle3)
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(reshape2)
+library(dplyr)
+
+
+cds = get(load("monocle3_cds_preprocess.Rdata"))
+
+gene_annotation = rowData(cds)
+expr_mat = exprs(cds)
+cell_have =pData(cds)
+
+colnames(cell_have)[14:15] = c("TSNE_1", "TSNE_2")
+colnames(cell_have)[25:27] = c("UMAP_1", "UMAP_2", "UMAP_3")
+cell_have = as.data.frame(cell_have)
+
+plot_title_size = 25
+axis_text_size = 25
+axis_title_size=25
+legend_text_size=20
+chosen_margin = c(0.5,1,0.5,1)
+
+theme_tsne <- theme_bw(base_family="Helvetica") +
+    theme(
+        plot.title = element_text(hjust=0, vjust=0, 
+           lineheight=.8, face="bold", size=plot_title_size ),
+        plot.margin=unit(chosen_margin,"cm"), 
+        axis.text=element_blank(),  
+        axis.title=element_blank(), 
+        legend.position = 'none'  , 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank() )
+        
+barplot_theme = theme(plot.margin=unit(chosen_margin,"cm"),
+                    panel.grid.major = element_blank(), 
+                    panel.grid.minor = element_blank(),
+                    panel.background = element_blank(), 
+                    axis.line = element_line(colour = "black"), 
+                    axis.text.x = element_text(angle = 90, hjust=1), 
+                    axis.text=element_text(size=axis_text_size),
+                    axis.title=element_text(size=axis_title_size))
+
+# color scheme used for figures. 
+levs1 =  c("T1&F1","TrkB.T1", "TrkB.FL",  "not-expressed" )
+colors1 = c("black","cyan4", "Coral",  "grey80" )
+
+# remove cells which were not used by Cao et al for TSNE 
+rm_idx = which(is.na(cell_have$TSNE_1))
+if(length(rm_idx)!=0){
+    cell_have = cell_have[-rm_idx, ]
+    expr_mat = expr_mat[, -rm_idx]
+}
+
+only_blue = cell_have
+only_blue$status_4lev = as.character(only_blue$status_4lev)
+only_blue[which(only_blue$status_4levs=="TrkB.FL") , "status_4levs"] = "not-expressed"
+only_blue[which(only_blue$status_4levs=="T1&F1") , "status_4levs"] = "TrkB.T1"
+only_blue = only_blue[order(only_blue$status_4lev, decreasing=FALSE), ]
+only_blue$status_4levs = factor(only_blue$status_4levs, levels = c( "not-expressed", "TrkB.T1"))
+
+blue_plot= ggplot(only_blue, aes(TSNE_1, TSNE_2, color=status_4levs)) +
+    geom_point( size=0.5, alpha =0.5) +  ggtitle("TrkB.T1 Expression") +
+    theme_tsne +
+    scale_colour_manual(labels = c( "not-expressed", "TrkB.T1"),
+                        values = c("grey80","cyan4")) 
+
+only_orange = cell_have
+only_orange[which(only_orange$status_4levs=="TrkB.T1") , "status_4levs"] = "not-expressed"
+only_orange[which(only_orange$status_4levs=="T1&F1") , "status_4levs"] = "TrkB.FL"
+only_orange = only_orange[order(only_orange$status_4lev, decreasing=FALSE), ]
+only_orange$status_4levs = factor(only_orange$status_4levs, levels =  c( "not-expressed", "TrkB.FL"))
+orange_plot= ggplot(only_orange, aes(TSNE_1, TSNE_2, color=status_4levs)) +
+    geom_point( size=0.5, alpha =0.5) +  ggtitle("TrkB.FL Expression") +
+    theme_tsne +
+    scale_colour_manual(name = "",
+                        labels = c( "not-expressed", "TrkB.FL"),
+                        values = c("grey80","Coral")) 
+
+pdf("fig1_final_full_TSNE.pdf")
+print(orange_plot)
+print(blue_plot)
+dev.off()
+```
+
+### TSNE plots by development stage : 
+
+```{r}
+day_range = c(9.5, 10.5, 11.5 , 12.5, 13.5)
+day_plots = lapply(day_range, function(z){
+    message(z)
+    temp = cell_have
+    idx = which(temp$development_stage!=z) 
+    temp =temp[-idx, ]
+    
+    only_orange = temp
+    only_orange[which(only_orange$status_4levs=="TrkB.T1") , "status_4levs"] = "not-expressed"
+    only_orange[which(only_orange$status_4levs=="T1&F1") , "status_4levs"] = "TrkB.FL"
+    only_orange = only_orange[order(only_orange$status_4lev, decreasing=FALSE), ]
+    only_orange$status_4levs = factor(only_orange$status_4levs, levels =  c( "not-expressed", "TrkB.FL"))
+    
+    orange_plot= ggplot(only_orange, aes(TSNE_1, TSNE_2, color=status_4levs)) +
+        geom_point( size=0.5) +  ggtitle(paste0("TrkB.FL Expression at ", z)) +
+        theme_tsne +
+        scale_colour_manual(name = "",
+                            labels = c( "not-expressed", "TrkB.FL"),
+                            values = c("grey80","Coral")) 
+    
+    only_blue = temp
+    only_blue[which(only_blue$status_4levs=="TrkB.FL") , "status_4levs"] = "not-expressed"
+    only_blue[which(only_blue$status_4levs=="T1&F1") , "status_4levs"] = "TrkB.T1"
+    only_blue = only_blue[order(only_blue$status_4lev, decreasing=FALSE), ]
+    only_blue$status_4levs = factor(only_blue$status_4levs, levels = c( "not-expressed", "TrkB.T1"))
+    
+    blue_plot= ggplot(only_blue, aes(TSNE_1, TSNE_2, color=status_4levs)) +
+        geom_point( size=0.5) +  ggtitle(paste0("TrkB.T1 Expression at ", z)) +
+        theme_tsne +
+        scale_colour_manual(name = "",
+                            labels = c( "not-expressed", "TrkB.T1"),
+                            values = c("grey80","cyan4")) 
+        
+    
+    bar_df = temp[, c("status_4levs", "Updated_main_cell_type")]
+    colnames(bar_df)[2] = "Main_cell_type"
+    d1 <- bar_df %>% 
+        group_by(Main_cell_type,status_4levs) %>% 
+        summarise(count=n()) %>% 
+        mutate(perc=count/sum(count))
+    d1 = as.data.frame(d1)
+    
+    s_df = d1[which(d1[,2]=="TrkB.FL"), ]
+    s_df = s_df[order(s_df[,4], decreasing=TRUE),]
+    t1_cell_types = s_df[,1]
+    s_df$Main_cell_type = factor(s_df$Main_cell_type, levels = t1_cell_types)
+    bar1 =ggplot(s_df, aes(x = Main_cell_type, y = perc*100, fill = status_4levs)) +
+        geom_bar(stat="identity", width = 0.7, position="dodge", fill = "Coral") +
+        labs(y = "Percentage", x = "", fill = "") + 
+        barplot_theme
+    
+    s_df = d1[which(d1[,2]=="TrkB.T1"), ]
+    s_df = s_df[order(s_df[,4], decreasing=TRUE),]
+    t1_cell_types = s_df[,1]
+    s_df$Main_cell_type = factor(s_df$Main_cell_type, levels = t1_cell_types)
+    bar2 =ggplot(s_df, aes(x = Main_cell_type, y = perc*100, fill = status_4levs)) +
+        geom_bar(stat="identity", width = 0.7, position="dodge", fill = "cyan4") +
+        labs(y = "Percentage", x = "", fill = "") +
+        barplot_theme
+    
+    
+    pdf(paste0("full_TSNE_at_",z,".pdf"))
+    print(blue_plot)
+    print(orange_plot)
+    dev.off()
+    
+    
+    pdf(paste0("barplot_at_",z,".pdf"), width =12, height = 10)
+    print(bar1)
+    print(bar2)
+    dev.off()
+    
+})
+```
+
+### Actin Figure :
+
+```{r}
+want_trans = c("ENSMUST00000100497.10") 
+want_idx = match(want_trans, rownames(cds))
+temp_df =  as.matrix(expr_mat[ want_idx, , drop=FALSE ])
+temp_df = t(temp_df)
+colnames(temp_df) = gene_annotation[match(want_trans, gene_annotation$transcript_id), "transcript_name"]
+colnames(temp_df) = gsub("[-]", "_", colnames(temp_df))
+temp_df[which(temp_df==0)] = "not-expressed"
+temp_df[which(temp_df[,1]!="not-expressed"), 1]=colnames(temp_df)[1] 
+table(temp_df[,1])
+temp_df = cbind(cell_have, temp_df)
+
+a2 <- temp_df %>% 
+    group_by(Main_cell_type,Actb_001) %>% 
+    summarise(count=n()) %>% 
+    mutate(perc=count/sum(count))
+a2 = as.data.frame(a2)
+colnames(a2)[2] =  "Transcript"
+
+a2$Transcript = factor(a2$Transcript, levels = c("Actb_001", "not-expressed"))
+a2$Main_cell_type = factor(a2$Main_cell_type)
+bar_actb =ggplot(a2, aes(y = Main_cell_type, x = perc*100, fill = factor(Transcript))) +
+    geom_bar(stat="identity", width = 0.7, position="dodge",) +
+    labs(x = "Percentage", y = "", fill = "") +
+    barplot_theme + xlim(c(0,100)) +
+    scale_fill_manual(labels = c("Actb_001", "not-expressed"),
+                      values = c("darkgreen", "grey80"))  +
+    theme(legend.text=element_text(size=legend_text_size),
+                    legend.justification = 'left',
+                    legend.position = 'bottom',)
+
+
+pdf("Actin_barplot.pdf",  width =15, height = 12)
+print(bar_actb)
+dev.off()
+
+writedf = as.data.frame(a2)
+writedf$perc = round(writedf$perc *100, 4)
+write.table(writedf, "Actb_001_supp_table.txt", 
+            sep ="\t", quote=FALSE, row.names=FALSE, col.names=TRUE)
+```
