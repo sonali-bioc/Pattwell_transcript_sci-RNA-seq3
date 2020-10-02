@@ -1,0 +1,135 @@
+---
+title: "Transcript reads from sci-RNA-Seq3 data"
+author: "Sonali Arora"
+date: "October 2, 2020"
+output: 
+  html_document:
+    toc: true
+    theme: united
+---
+
+## Introduction 
+
+All publicly available files were downloaded for Cao et al's dataset. First we quantified transcript expression for
+all genes in the genome for each SAM file downloaded using htseq-count. Next, we combined results from htseq-count
+and  built a 'cell_data_set' object using Monocle3. Finally, we preprocess and normalize the data using Monocle3. 
+
+### Quantifying transcript reads using htseq
+
+For each SAM alignment file that was downloaded, htseq-count was run on them using the following code snippet :
+
+```{}
+htseq-count ${sam_file} ${gencode_gtf} -i transcript_id >> ${sam_file}.trans_id.htseq.txt
+```
+
+### combine data from 2million htseq-count files 
+
+```{r}
+
+library(monocle3)
+library(rtracklayer)
+
+fls = list.files(pattern = ".htseq.txt")
+lst = lapply(fls, function(x){
+        tryCatch({
+            read.delim(x, header=F, stringsAsFactors=FALSE, row.names=1)
+        }, error = function(e){
+            NA_character_
+        })
+})
+
+mat = do.call(cbind, lst)
+colnames(mat) = gsub(".sam.trans_id.htseq.txt", "", basename(fls))
+summary_idx = grep("__", rownames(mat))
+mat = mat[-c(summary_idx),  ]
+
+# read in cell annotation file from Cao et al
+cell = read.csv("cell_annotate.csv", header=T, stringsAsFactors=FALSE)
+
+# read in annotation file from gencode.
+gtf = import("/fh/scratch/delete90/holland_e/user/sarora/jay_single_cell/gencode.vM12.chr_patch_hapl_scaff.annotation.gtf")
+trans_gtf = gtf[which(gtf$type=="transcript"), ]
+trans_gtf = keepStandardChromosomes(trans_gtf, pruning.mode="coarse")  
+
+# subset to important genes  in genome.
+# Use hallmark gene set from msigdb to get important cancer genes. 
+goi = cogena::gmt2list("h.all.v7.1.symbols.gmt")
+goi = unique(unlist(goi))
+
+library(biomaRt)
+human = useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+mouse = useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+convert_Human_to_Mouse <- function(genes){
+ getLDS(attributes = c("hgnc_symbol"), filters = "hgnc_symbol",
+        values = genes ,mart = human,
+        attributesL = c("mgi_symbol"), martL = mouse, uniqueRows=T)
+}
+genes = convert_Human_to_Mouse(goi)
+
+mm10_genes = c(genes[,2], "Ntrk1", "Ntrk2", "Ntrk3", "Actb", "Gfap", "S100b", "Aldh1l1", "Tnc", "Pdgfr")
+mm10_genes = mm10_genes[-c(which(is.na( match(mm10_genes, gtf$gene_name))))]
+midx = sapply(mm10_genes, function(x)  which( trans_gtf$gene_name ==x )  )
+midx = unique(unlist(midx))
+trans_gtf = trans_gtf[midx, ]
+
+gene_annotation  =as.data.frame(trans_gtf)
+gene_annotation = gene_annotation[, c("gene_id", "gene_name", "gene_type", 
+  "transcript_id", "transcript_name", "transcript_type", 
+  "seqnames", "start", "end")]
+rownames(gene_annotation) = want$transcript_id
+colnames(gene_annotation)[2] = "gene_short_name"
+
+# subset htseq-file to interesting transcipts. 
+ridx = match(trans_gtf$transcript_id, rownames(mat))
+mat  = mat[ridx, ]
+
+# get cell information:
+col_nms = intersect(colnames(mat), cell[,1])
+cidx = match(col_nms, cell[,1])
+cell_metadata = cell[cidx, ]
+colnames(cell_metadata)[1] = "cell_name"
+rownames(cell_metadata) = cell_metadata[,1]
+mat = mat[, match(col_nms, colnames(mat))]
+mat = as.matrix(mat)
+
+# make a cds using Monocle3 
+cds <- new_cell_data_set(mat,
+                         cell_metadata = cell_metadata,
+                         gene_metadata = gene_annotation)
+
+# remove those cells which have 0 reads 
+rm = which(colSums(exprs(cds)) ==0)
+if(length(rm)!=0){
+   cds = cds[, -rm]
+}
+
+# Preprocess and Normalize the data using Monocle3.
+cds <- preprocess_cds(cds, num_dim = 100)
+
+
+# check expression of TrkB.T1 and TrkB.FL in data
+want_trans = c("ENSMUST00000079828.5", "ENSMUST00000109838.8")
+want_idx = match(want_trans, rownames(cds))
+temp_df =  as.matrix(exprs(cds)[ want_idx, ])
+temp_df = t(temp_df)
+
+status_ntrk2 = apply(temp_df, 1, function(x){
+    verdict = "no-change"
+    if(x[1]!=0 &  x[2]==0){
+        verdict = "TrkB.FL"
+    }
+    if(x[1]==0 &  x[2]!=0){
+        verdict = "TrkB.T1"
+    }
+    if(x[1]!=0 &  x[2]!=0){
+        verdict = "T1&F1"
+    }
+    
+    verdict
+})
+pData(cds)$status_ntrk2 = status_ntrk2
+
+# save cds
+save(cds, file = "monocle3_cds_preprocess.Rdata")
+
+```
