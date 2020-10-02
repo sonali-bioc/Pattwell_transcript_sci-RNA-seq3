@@ -37,6 +37,6 @@ BiocManager::install(c( "rtracklyer", "ggplot2", "gridExtra"))
 2) “cell_annotation.csv” which contained TSNE coordinates, UMAP coordinates, and information about clusters and trajectories was downloaded from [here](https://oncoscape.v3.sttrcancer.org/atlas.gs.washington.edu.mouse.rna/downloads)
 3) “Comprehensive gene annotation” file was downloaded from [Gencode](https://www.gencodegenes.org/mouse/release_M12.html)
 4) Transcript data (TPM data) was downloaded for TARGET from [UCSC Xena](https://xenabrowser.net/datapages/?dataset=target_RSEM_gene_tpm&host=https%3A%2F%2Ftoil.xenahubs.net&removeHub=https%3A%2F%2Fxena.treehouse.gi.ucsc.edu%3A443)
-5) Transcript Data (TCGA RNAseqV2 RSEM data) for each TCGA organ sites was downloaded from here(https://gdac.broadinstitute.org/). 
-
+5) Transcript Data (TCGA RNAseqV2 RSEM data) for each TCGA organ sites was downloaded from [here](https://gdac.broadinstitute.org/). 
+6) Hallmark gene set was downloaded form [here](https://www.gsea-msigdb.org/gsea/downloads.jsp)
 
