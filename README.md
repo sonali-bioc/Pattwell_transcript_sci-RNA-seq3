@@ -38,3 +38,11 @@ BiocManager::install(c( "rtracklyer", "ggplot2", "gridExtra"))
 3) “Comprehensive gene annotation” file was downloaded from [Gencode](https://www.gencodegenes.org/mouse/release_M12.html)
 4) Transcript data (TPM data) was downloaded for TARGET from [UCSC Xena](https://xenabrowser.net/datapages/?dataset=target_RSEM_gene_tpm&host=https%3A%2F%2Ftoil.xenahubs.net&removeHub=https%3A%2F%2Fxena.treehouse.gi.ucsc.edu%3A443)
 5) Transcript Data (TCGA RNAseqV2 RSEM data) for each TCGA organ sites was downloaded from here(https://gdac.broadinstitute.org/). 
+
+## Quantifying transcript reads using htseq
+
+For each SAM alignment file that was downloaded, htseq-count was run on them using the following code snippet :
+
+```{}
+htseq-count ${sam_file} ${gencode_gtf} -i transcript_id >> ${sam_file}.trans_id.htseq.txt
+```
